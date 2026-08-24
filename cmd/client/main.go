@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 
@@ -10,6 +9,14 @@ import (
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	"github.com/joho/godotenv"
 )
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(state routing.PlayingState) {
+		defer fmt.Print("> ")
+
+		gs.HandlePause(state)
+	}
+}
 
 func main() {
 	fmt.Println("Starting Peril client...")
@@ -32,14 +39,14 @@ func main() {
 		return
 	}
 
+	gameState := gamelogic.NewGameState(userName)
+
 	queueName := routing.PauseKey + "." + userName
-	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilDirect, queueName, routing.PauseKey, pubsub.QueueTransient)
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, queueName, routing.PauseKey, pubsub.QueueTransient, handlerPause(gameState))
 	if err != nil {
-		fmt.Println("Failed to declare and bind queue:", err)
+		fmt.Println("Failed to subscribe to pause messages:", err)
 		return
 	}
-
-	gameState := gamelogic.NewGameState(userName)
 
 	for {
 		words := gamelogic.GetInput()
@@ -67,11 +74,5 @@ func main() {
 		default:
 			fmt.Println("Unknown command. Type 'help' for a list of commands.")
 		}
-	}
-
-	scanner := bufio.NewScanner(os.Stdin)
-	scanned := scanner.Scan()
-	if scanned {
-		fmt.Println("Scanned input:", scanner.Text())
 	}
 }
