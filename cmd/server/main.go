@@ -7,30 +7,24 @@ import (
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
-	"github.com/rabbitmq/amqp091-go"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	fmt.Println("Starting Peril server...")
+	godotenv.Load(".env")
+	rabbitMQConnectionString := os.Getenv("RABBIT_MQ_CONNECTION_STRING")
 
-	rabbitMQConnectionString := "amqp://guest:guest@localhost:5672/" // update later to use env variable
-
-	conn, err := amqp091.Dial(rabbitMQConnectionString)
+	conn, amqpChannel, err := pubsub.ConnectToRabbitMQ(rabbitMQConnectionString)
 	if err != nil {
 		fmt.Println("Failed to connect to RabbitMQ:", err)
 		return
 	}
 	defer conn.Close()
+	defer amqpChannel.Close()
 
-	amqpChannel, err := conn.Channel()
-	if err != nil {
-		fmt.Println("Failed to open a channel:", err)
-		return
-	}
-		defer amqpChannel.Close()
-		
 	dataToSend := routing.PlayingState{
-		IsPaused: false,
+		IsPaused: true,
 	}
 	pubsub.PublishJSON(amqpChannel, routing.ExchangePerilDirect, routing.PauseKey, dataToSend)
 
