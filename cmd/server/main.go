@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	"github.com/joho/godotenv"
@@ -12,6 +13,7 @@ import (
 
 func main() {
 	fmt.Println("Starting Peril server...")
+
 	godotenv.Load(".env")
 	rabbitMQConnectionString := os.Getenv("RABBIT_MQ_CONNECTION_STRING")
 
@@ -33,6 +35,36 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
-	<-signalChan
-	fmt.Println("Received interrupt signal. Shutting down...")
+	queueName := "game_logs"
+	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, queueName, routing.GameLogSlug+".*", pubsub.QueueDurable)
+	if err != nil {
+		fmt.Println("Failed to declare and bind queue:", err)
+		return
+	}
+
+	gamelogic.PrintServerHelp()
+
+	for {
+		words := gamelogic.GetInput()
+
+		switch words[0] {
+		case "pause":
+			dataToSend := routing.PlayingState{
+				IsPaused: true,
+			}
+			pubsub.PublishJSON(amqpChannel, routing.ExchangePerilDirect, routing.PauseKey, dataToSend)
+		case "resume":
+			dataToSend := routing.PlayingState{
+				IsPaused: false,
+			}
+			pubsub.PublishJSON(amqpChannel, routing.ExchangePerilDirect, routing.PauseKey, dataToSend)
+		case "quit":
+			fmt.Println("Quitting server...")
+		case "help":
+			gamelogic.PrintServerHelp()
+		default:
+			fmt.Println("Unknown command. Type 'help' for a list of commands.")
+		}
+	}
+
 }

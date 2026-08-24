@@ -39,6 +39,36 @@ func main() {
 		return
 	}
 
+	gameState := gamelogic.NewGameState(userName)
+
+	for {
+		words := gamelogic.GetInput()
+
+		switch words[0] {
+		case "spawn":
+			err := gameState.CommandSpawn(words)
+			if err != nil {
+				fmt.Println("Error spawning unit:", err)
+			}
+		case "move":
+			_, err := gameState.CommandMove(words)
+			if err != nil {
+				fmt.Println("Error moving unit:", err)
+			}
+		case "status":
+			gameState.CommandStatus()
+		case "help":
+			gamelogic.PrintClientHelp()
+		case "spam":
+			fmt.Println("Spamming not allowed yet!")
+		case "quit":
+			gamelogic.PrintQuit()
+			return
+		default:
+			fmt.Println("Unknown command. Type 'help' for a list of commands.")
+		}
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 	scanned := scanner.Scan()
 	if scanned {
