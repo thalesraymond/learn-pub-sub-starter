@@ -37,7 +37,7 @@ func DeclareAndBind(
 	exchange,
 	queueName,
 	key string,
-	queueType SimpleQueueType, // SimpleQueueType is an "enum" type I made to represent "durable" or "transient"
+	queueType SimpleQueueType, // SimpleQueueType is an "enum" type I made to represent "durable" or "transient".
 ) (*amqp091.Channel, amqp091.Queue, error) {
 
 	channel, err := conn.Channel()
