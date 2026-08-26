@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -47,7 +48,7 @@ func main() {
 	}
 
 	// Subscribe to the shared "war" queue so this client can resolve wars.
-	err = SubscribeToWar(userName, err, conn, gameState)
+	err = SubscribeToWar(userName, err, conn, channel, gameState)
 	if err != nil {
 		fmt.Println("Error subscribing to war messages:", err)
 		return
@@ -143,11 +144,13 @@ func SubscribeToArmyMoves(userName string, err error, conn *amqp091.Connection, 
 	return nil
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, ch *amqp091.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
 
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
+		var message string
+
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
 			// This client isn't in the war; requeue so another client can try to resolve it.
@@ -156,22 +159,41 @@ func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub
 			// No overlapping units, so there's nothing to fight; discard the message.
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeOpponentWon:
-			return pubsub.Ack
+			message = fmt.Sprintf("%s won a war against %s", winner, loser)
 		case gamelogic.WarOutcomeYouWon:
-			return pubsub.Ack
+			message = fmt.Sprintf("%s won a war against %s", winner, loser)
 		case gamelogic.WarOutcomeDraw:
-			return pubsub.Ack
+			message = fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
 		default:
 			// Unknown outcome; print an error and discard.
 			fmt.Println("Unknown war outcome...")
 			return pubsub.NackDiscard
 		}
+
+		// Publish the war's outcome to the game logs queue, keyed by the player
+		// who initiated the war.
+		err := publishGameLog(ch, rw.Attacker.Username, message)
+		if err != nil {
+			fmt.Println("Error publishing game log:", err)
+			return pubsub.NackRequeue
+		}
+		return pubsub.Ack
 	}
 }
 
-func SubscribeToWar(userName string, err error, conn *amqp091.Connection, gameState *gamelogic.GameState) error {
+// publishGameLog publishes a GameLog message to the game logs queue on the
+// topic exchange, serialized as gob.
+func publishGameLog(ch *amqp091.Channel, username, message string) error {
+	return pubsub.PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+username, routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     message,
+		Username:    username,
+	})
+}
+
+func SubscribeToWar(userName string, err error, conn *amqp091.Connection, ch *amqp091.Channel, gameState *gamelogic.GameState) error {
 	// All clients share this durable "war" queue, bound to war.* on the topic exchange.
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "war", routing.WarRecognitionsPrefix+".*", pubsub.QueueDurable, handlerWar(gameState))
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "war", routing.WarRecognitionsPrefix+".*", pubsub.QueueDurable, handlerWar(gameState, ch))
 	if err != nil {
 		fmt.Println("Error subscribing to war messages:", err)
 		return err

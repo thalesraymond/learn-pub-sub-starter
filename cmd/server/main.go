@@ -37,6 +37,12 @@ func main() {
 
 	queueName := "game_logs"
 	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, queueName, routing.GameLogSlug+".*", pubsub.QueueDurable)
+	pubsub.SubscribeGob(conn, routing.ExchangePerilTopic, queueName, routing.GameLogSlug+".*", pubsub.QueueDurable, func(log routing.GameLog) pubsub.AckType {
+		defer fmt.Println("Received game log message:", log)
+		gamelogic.WriteLog(log)
+		// Handle the game log message
+		return pubsub.Ack
+	})
 	if err != nil {
 		fmt.Println("Failed to declare and bind queue:", err)
 		return
