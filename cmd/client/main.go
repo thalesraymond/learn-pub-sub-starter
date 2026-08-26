@@ -60,7 +60,10 @@ func main() {
 			if err != nil {
 				fmt.Println("Error moving unit:", err)
 			}
-			pubsub.PublishJSON(channel, routing.ExchangePerilTopic, "army_moves."+userName, move)
+			err = pubsub.PublishJSON(channel, routing.ExchangePerilTopic, "army_moves."+userName, move)
+			if err != nil {
+				fmt.Println("Error publishing move command:", err)
+			}
 			fmt.Println("Move command sent to server.")
 		case "status":
 			gameState.CommandStatus()
@@ -77,11 +80,12 @@ func main() {
 	}
 }
 
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(state routing.PlayingState) {
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.AckType {
+	return func(state routing.PlayingState) pubsub.AckType {
 		defer fmt.Print("> ")
 
 		gs.HandlePause(state)
+		return pubsub.Ack
 	}
 }
 
@@ -95,11 +99,16 @@ func SubscribeToPause(userName string, err error, conn *amqp091.Connection, game
 	return nil
 }
 
-func handlerArmyMoves(gs *gamelogic.GameState) func(gamelogic.ArmyMove) {
-	return func(move gamelogic.ArmyMove) {
+func handlerArmyMoves(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.AckType {
+	return func(move gamelogic.ArmyMove) pubsub.AckType {
 		defer fmt.Print("> ")
 
-		gs.HandleMove(move)
+		outcome := gs.HandleMove(move)
+		if outcome == gamelogic.MoveOutComeSafe || outcome == gamelogic.MoveOutcomeMakeWar {
+			return pubsub.Ack
+		}
+
+		return pubsub.NackDiscard
 	}
 }
 
