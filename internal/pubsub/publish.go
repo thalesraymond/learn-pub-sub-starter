@@ -49,7 +49,10 @@ func DeclareAndBind(
 	autoDelete := queueType == QueueTransient
 	exclusive := queueType == QueueTransient
 
-	createdQueue, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+	createdQueue, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, false, amqp091.Table{
+		"x-dead-letter-exchange": "peril_dlx",
+	})
+
 	if err != nil {
 		return nil, amqp091.Queue{}, err
 	}
