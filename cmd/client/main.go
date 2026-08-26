@@ -121,8 +121,8 @@ func handlerArmyMoves(gs *gamelogic.GameState, ch *amqp091.Channel, userName str
 				fmt.Println("Error publishing war declaration:", err)
 				return pubsub.NackRequeue
 			}
-
 			return pubsub.Ack
+
 		}
 
 		if outcome == gamelogic.MoveOutComeSafe {
