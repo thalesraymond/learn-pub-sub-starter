@@ -53,6 +53,10 @@ func main() {
 	for {
 		words := gamelogic.GetInput()
 
+		if len(words) == 0 {
+			continue
+		}
+
 		switch words[0] {
 		case "pause":
 			dataToSend := routing.PlayingState{

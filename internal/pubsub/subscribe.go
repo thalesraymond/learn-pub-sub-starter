@@ -29,7 +29,7 @@ func SubscribeJSON[T any](
 	if err != nil {
 		return err
 	}
-
+	channel.Qos(10, 0, false) // Set prefetch count to 10
 	msgs, err := channel.Consume(queue.Name, "", false, false, false, false, nil)
 	if err != nil {
 		return err
@@ -61,7 +61,6 @@ func SubscribeJSON[T any](
 
 	return nil
 }
-
 
 func SubscribeGob[T any](
 	conn *amqp091.Connection,
